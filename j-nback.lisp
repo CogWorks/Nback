@@ -85,9 +85,9 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  trials)
 
 (defclassic short-block (N-back-block)
-  (ISI 2000))
+  (ISI 3.000))
 (defclassic long-block (N-back-block)
-  (ISI 4000))
+  (ISI 3.000))
 
 (defclassic n-back-trial ()
  blk
@@ -137,9 +137,11 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 )
 
 (defmethod make-blocks ((p n-back2))
-  (if (null +stimulii+)
-          (setf +stimulii+ (subseq (read-input (capi:prompt-for-file "")) 0 (+ +num-blocks+ 1))))
-  (let ((n (round (/  (num-blocks p) 2))))
+  
+  (let ((n (round (/  (num-blocks p) 2)))
+        (seq (permute-list '(1 2 3 4 5 6 7 8 9 10 11 12))))
+    (push 0 seq)
+    (log-info `(block-sequence ,seq))
     (dotimes (i n)
       (push (make-instance 'long-block) (blocks p))
       (push (make-instance 'short-block) (blocks p)))
@@ -147,7 +149,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
     (push (make-instance 'short-block) (blocks p) )
     (dotimes (i (length (blocks p)))
       (dotimes (j (length (nth i +stimulii+)))
-        (destructuring-bind (stim typ back) (nth j (nth i +stimulii+))
+        (destructuring-bind (stim typ back) (nth j (nth (nth i seq)  +stimulii+))
           (setf (num (nth i (blocks p) )) i) 
           (push  (make-instance 'n-back-trial :value stim :trial-type typ :num-since back :stimulus 'L :trial-num j :modality 'visual
                                               :blk (nth i (blocks p) )  
@@ -349,7 +351,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
           (dotimes (j (length (trials blk)))
             (let ((tr (nth j (trials blk))))
               (setf current-trial tr)
-              (log-info `(trial start :blk-type (type-of blk) :blk ,i :trial ,(trial-num tr))) 
+              (log-info `(trial start  :blk ,i :trial ,(trial-num tr))) 
               (let ((tm (get-internal-real-time)))
                 (setf in-progress? tm)
                 (display-stimulus exp-win tr)
@@ -358,7 +360,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
                 (setf in-progress? nil)
                 (if (null (actual-response tr)) (log-info `(no-subject-response :expected-respose ,(expected-response tr))))
                 (display-feedback exp-win tr)
-                (if (typep blk 'short-block) (sleep .5) (sleep 2.5))
+                (sleep (isi blk)) 
                 (clear-screen exp-win)
                 )))
 #+:eeg    (eeg-proc 'end-record)
@@ -371,7 +373,9 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 (defmethod end-of-block-msg (blk (p n-back2))
   (let ((rt (chop (/ (mean (mapcar 'response-time (trials blk))) 1000.0)))
-        (acc (round (* 100.0 (mean (mapcar (lambda(obj) (if (eql (expected-response obj) (actual-response obj)) 1 0)) (trials blk)))))))
+        (acc (round (* 100.0 (mean (mapcar (lambda(obj) (if (eql (expected-response obj) (actual-response obj)) 1 0)) (subseq (trials blk) 3)))))))
+    (log-info `(block-feedback :block ,(num blk) :accuracy ,acc :rt ,rt))
+    ;(log-info `(debug ,(mapcar (lambda(obj) (if (eql (expected-response obj) (actual-response obj)) 1 0)) (trials blk)) ,(mean (mapcar 'response-time (trials blk)))))
     (capi:display-message (format nil "End of Block ~S ~%~%Your accuracy was ~S %  ~%~% Your response time was ~S seconds" (num blk) acc rt))))
   
 (defun nback-done (p)
@@ -402,29 +406,22 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 (let ((p (n-back))
       (pn (directory-namestring (current-pathname)))
       )
-(defparameter +stimulii-file+ (concatenate 'string pn "Seqs/even_24_4_4_processed.txt"))
-
 
 (defun n-back-config ()
-  (cond ((null +stimulii+)
-         (if (capi:prompt-for-confirmation (format nil 
-                                                   "No stimulii, current stimulii file~%~%~A~%~%Press Yes to use current, No to choose new file"
-                                                   +stimulii-file+) :default-button :ok)
-             (setf +stimulii+ (subseq (read-input +stimulii-file+) 0 (+ +num-blocks+ 1)))
-           (setf +stimulii+ (subseq (read-input (capi:prompt-for-file "")) 0 (+ +num-blocks+ 1)))))
-        (t
-         (if (null (capi:prompt-for-confirmation "Use existing Stimulii?" :default-button :ok))
-             (setf +stimulii+ (subseq (read-input (capi:prompt-for-file "")) 0 (+ +num-blocks+ 1))))))
-  (configuration-done (task p) :condition "A"))
-             
-
-
+  (let* ((condition '("even_8" "even_24" "skewed_8" "skewed_24"))
+         (resp (capi:prompt-with-list condition "Please choose a condition: "))
+         (files (mapcar 'file-namestring (directory (concatenate'string pn "nback_lists/"))))
+         (fn (find resp files :key (lambda(y) (subseq y 0 (length resp))) :test 'equal)))
+    (when fn
+      (setf +stimulii+ (read-input (concatenate'string pn "nback_lists/" fn)))
+      (configuration-done (task p) :condition resp))))
+      
  (defun cw-run-nback ()
    (log-info `(Cogworld))
    (let ((btn-box (capi:button-selected (check-response-pad (control-window *cw*)))))
      (run-nback :btn-box btn-box) ))
 
-(setf (task p) (register-task "NBACK" :run-function #'cw-run-nback :configure-function #'n-back-config ))
+(setf (task p) (register-task "NBACK" :run-function #'cw-run-nback  :configure-function #'n-back-config ))
 )
 
 
