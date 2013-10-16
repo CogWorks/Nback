@@ -345,7 +345,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
         (let ((blk (nth i blocks)))
           (set-mouse-position 0 0)
           (clear-screen exp-win)
-;;#+:eeg      (chk-electrodes i)        
+#+:eeg      (chk-electrodes i)        
           (sleep .5)
           (capi:activate-pane exp-win)
           (dotimes (j (length (trials blk)))
