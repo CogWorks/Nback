@@ -69,7 +69,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
     (if (null l) 0 (/ (reduce '+ l) (length l)))))
     
 (defparameter +stimulii+ nil)       
-(defparameter +num-blocks+ 13)
+(defparameter +num-blocks+ 12)
 (defconstant +passcode+ "cogworks")
 (defconstant +window-size+ 800)
 (defconstant +letter-size+ 34)
@@ -78,11 +78,22 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 (defconstant +cross-size+ 34)
 (defparameter +match-letter+ #\a)
 (defparameter +no-match-letter+ #\d)
+(defparameter +practice-trials+ '(((R x 0) (J x 0) (Z x 0) (H DIST 0) (M DIST 0) (Z MATCH 3) (H MATCH 3) (M MATCH 3) (Z MATCH 3) (H MATCH 3) (B DIST 0) (X DIST 0) (B N-1 2) (J DIST 12) (X MATCH 3) (R DIST 15) (Z DIST 8) (X MATCH 3) (F DIST 0) (R N+1 4) (X MATCH 3) (F MATCH 3) (R MATCH 3) (Z DIST 7) (F MATCH 3) (R MATCH 3) (M DIST 19) (R N-1 2) (B DIST 16) (X DIST 9) (F DIST 6) (B MATCH 3) (X MATCH 3) (J DIST 20) (B MATCH 3))
+
+((H x 0) (J x 0) (Z x 0) (H MATCH 3) (R DIST 0) (F DIST 0) (R N-1 2) (J DIST 6) (F MATCH 3) (R MATCH 3) (J MATCH 3) (F MATCH 3) (R MATCH 3) (H DIST 10) (M DIST 0) (R MATCH 3) (Z DIST 14) (Z DIST 15) (F DIST 7) (X DIST 0) (B DIST 0) (M DIST 7) (H DIST 9) (B MATCH 3) (M MATCH 3) (H MATCH 3) (B MATCH 3) (R DIST 12) (H MATCH 3) (F DIST 11) (R MATCH 3) (H MATCH 3) (M DIST 8) (X DIST 14) (H MATCH 3) )
+
+((R x 0) (B x 0) (Z x 0) (R MATCH 3) (B MATCH 3) (F DIST 0) (J DIST 0) (R N+1 4) (F MATCH 3) (R N-1 2) (M DIST 0) (M DIST 0) (F N+1 4) (X DIST 0) (J DIST 8) (Z DIST 13) (X MATCH 3) (J MATCH 3) (B DIST 14) (X MATCH 3) (B N-1 2) (F DIST 9) (X MATCH 3) (M DIST 12) (H DIST 0) (Z DIST 10) (M MATCH 3) (X DIST 5) (Z MATCH 3) (M MATCH 3) (X MATCH 3) (B DIST 11) (M MATCH 3) (B N-1 2) (H DIST 10))
+
+((Z x 0) (M x 0) (X x 0) (F DIST 0) (H DIST 0) (Z DIST 5) (F MATCH 3) (B DIST 0) (R DIST 0) (M DIST 8) (X DIST 8) (R MATCH 3) (M MATCH 3) (J DIST 0) (H DIST 10) (X DIST 5) (J MATCH 3) (X N-1 2) (H N+1 4) (J MATCH 3) (X MATCH 3) (H MATCH 3) (R DIST 11) (B DIST 16) (H MATCH 3) (M DIST 13) (Z DIST 21) (B N+1 4) (Z N-1 2) (X DIST 9) (B MATCH 3) (Z MATCH 3) (F DIST 26) (X N+1 4) (Z MATCH 3)))) 
 
 
 (defclassic N-back-block ()
  num
  trials)
+
+
+(defclassic practice-block (N-back-block)
+  (ISI 3.000))
 
 (defclassic short-block (N-back-block)
   (ISI 3.000))
@@ -108,6 +119,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
   exp-win
   task
   (exp-name 'Nback)
+  strategy-sel-win 
   (load-path (current-pathname))
   (stimulus-display-time 1.0)
   current-trial
@@ -137,16 +149,18 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 )
 
 (defmethod make-blocks ((p n-back2))
-  
   (let ((n (round (/  (num-blocks p) 2)))
-        (seq (permute-list '(1 2 3 4 5 6 7 8 9 10 11 12))))
-    (push 0 seq)
+        (seq1 '(0 1 2 3))
+        (seq (permute-list '(4 5 6 7 8 9 10 11 12 13 14 15))))
+    (setq seq (append seq1 seq))
     (log-info `(block-sequence ,seq))
     (dotimes (i n)
       (push (make-instance 'long-block) (blocks p))
       (push (make-instance 'short-block) (blocks p)))
     (setf (blocks p) (permute-list (blocks p)))
-    (push (make-instance 'short-block) (blocks p) )
+    (dotimes (i 4)
+      (push (make-instance 'practice-block) (blocks p) ))
+    (setf +stimulii+ (append +practice-trials+  +stimulii+)) 
     (dotimes (i (length (blocks p)))
       (dotimes (j (length (nth i +stimulii+)))
         (destructuring-bind (stim typ back) (nth j (nth (nth i seq)  +stimulii+))
@@ -170,9 +184,29 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
    
    ))
 
+(defparameter txt1 "Please rate your ability to use the instructed strategy on a scale of 1 to 7")
+(defparameter txt2 "1 meaning that you were unable to use the strategy, and 7 meaning that you were able to use the strategy consistently.")
+
+(defparameter txt3 "If you had difficulty using the correct strategy and would like some help, open the door and ask the experimenter for assistance.")
+
+(capi:define-interface likert-screen ()
+  ((sel :initform nil :accessor sel))
+  (:panes
+   (likert capi:radio-button-panel :items '(1 2 3 4 5 6 7) :accessor likert :default-button nil :initial-focus-item nil
+           :keep-selection-p nil :accepts-focus-p nil
+           :selection-callback  (lambda(data win) (setf (sel win) data) )))
+  (:layouts
+   (strategy-selection capi:column-layout `(,txt1 ,txt2 likert ,txt3) :accessor strategy-selection))
+  (:default-initargs
+   :window-styles '(:borderless :toolbox)
+   :layout 'strategy-selection
+   :display-state :hidden))
+   
+
 (capi:define-interface n-back-screen () 
   ()
   (:panes
+   
    (cross-display cross :accessor cross)
    (disp capi:item-pinboard-object
          :x (- (floor +window-size+ 2) (floor +letter-size+ 2))
@@ -182,6 +216,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
          :text ""
          :accessor disp))
   (:layouts
+   (strategy-selection capi:column-layout `(,txt1 ,txt2 likert ,txt3) :accessor strategy-selection)
    (screen capi:pinboard-layout '(disp) 
            :visible-min-width +window-size+ 
            :visible-min-height +window-size+ 
@@ -197,6 +232,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
    :window-styles '(:borderless :always-on-top)
    
    :layout 'screen))
+
 
 ;;----------------------------------------------------------------------------
 ;; Define a square pinboard-object
@@ -236,10 +272,12 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
   (cond ((and  (eql (stimulus tr) 'L) (eql key +match-letter+) 'match))
         ((and  (eql (stimulus tr) 'L) (eql key +no-match-letter+) 'no-match))
         (t  (capi:beep-pane) (sleep .1) (capi:beep-pane)
-            'invalid-response)))
+            'invalid-response))) ;
+
      
 (defun char-input-callback (self x y key)
   (declare (ignore x y))
+
   (let ((tr (current-trial (n-back))))
        
        (cond ((null (in-progress? (n-back)))
@@ -253,6 +291,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
                                         :expected-response ,(expected-response tr)  :response-time ,(- (get-internal-real-time) (in-progress? (n-back)))
                                         :actual-response  ,(if (actual-response tr) 'already-responded (setf (actual-response tr)  (calc-actual-response tr key))))))
              (t
+              (setf (actual-response tr) 'invalid)
               (log-info `(subject-input :response ,key :trial-num ,(trial-num tr) :stimulus ,(value tr) :serial-position ,(num-since tr) :trial-type ,(trial-type tr) 
                                         :expected-response ,(expected-response tr) :response-time ,(- (get-internal-real-time) (in-progress? (n-back))) 
                                         :actual-response invalid-response ))
@@ -337,34 +376,42 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
   (if (and (plusp n) (zerop (mod n 4))) 
       (while (null (electrode-message)) (capi:beep-pane) (sleep 0.2) (capi:beep-pane))))
          
+(defvar abcd nil)
 (defmethod run-exp ((p n-back2))
   (with-slots (exp-win in-progress? stimulus-display-time blocks current-trial ) p
     
 #+:eeg      (eeg-proc 'begin-record)
       (dotimes (i (length blocks))
-        (let ((blk (nth i blocks)))
-          (set-mouse-position 0 0)
-          (clear-screen exp-win)
-;;#+:eeg      (chk-electrodes i)        
-          (sleep .5)
-          (capi:activate-pane exp-win)
-          (dotimes (j (length (trials blk)))
-            (let ((tr (nth j (trials blk))))
-              (setf current-trial tr)
-              (log-info `(trial start  :blk ,i :trial ,(trial-num tr))) 
-              (let ((tm (get-internal-real-time)))
-                (setf in-progress? tm)
-                (display-stimulus exp-win tr)
-                (sleep stimulus-display-time) 
-                (clear-screen exp-win)
-                (setf in-progress? nil)
-                (if (null (actual-response tr)) (log-info `(no-subject-response :expected-respose ,(expected-response tr))))
-                (display-feedback exp-win tr)
-                (sleep (isi blk)) 
-                (clear-screen exp-win)
-                )))
-#+:eeg    (eeg-proc 'end-record)
-          (end-of-block-msg blk p) ))
+        (let ((blk (nth i blocks)) (continue? t))
+          (if (eql i 3) (setq continue? (capi:prompt-for-confirmation  "Another Practice Block?")))
+          (when continue?
+            (set-mouse-position 0 0)
+            (clear-screen exp-win)
+            ;;#+:eeg      (chk-electrodes i)        
+            (sleep .5)
+            (capi:activate-pane exp-win)
+            (dotimes (j (length (trials blk))) 
+              (let ((tr (nth j (trials blk))))
+                (setf current-trial tr)
+                (log-info `(trial start  :blk ,i :trial ,(trial-num tr))) 
+                (let ((tm (get-internal-real-time)))
+                  (setf in-progress? tm)
+                  (display-stimulus exp-win tr)
+                  
+                  (cond ((and (eql i 0) (expected-response tr))
+                         (mp:process-wait-with-timeout "self paced" 120 'actual-response tr ))
+                        (t
+                         (sleep stimulus-display-time)))
+                  (clear-screen exp-win)
+                  (setf in-progress? nil)
+                  (if (and (null (actual-response tr)) (expected-response tr)) (log-info `(no-subject-response :expected-respose ,(expected-response tr))))
+                  (if (< i 2)
+                      (display-feedback exp-win tr))
+                  (sleep (isi blk)) 
+                  (clear-screen exp-win)
+                  )))
+            #+:eeg    (eeg-proc 'end-record)
+            (end-of-block-msg blk p) )))
       (capi:display-message (format nil "End of Experiment~%~%Thank You!!!" ))
       (nback-done p)))
 
@@ -376,11 +423,25 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
         (acc (round (* 100.0 (mean (mapcar (lambda(obj) (if (eql (expected-response obj) (actual-response obj)) 1 0)) 
                                            (remove-if-not (lambda(y) (eql (trial-type y) 'match)) (subseq (trials blk) 3)))))))
         (acc-all (round (* 100.0 (mean (mapcar (lambda(obj) (if (eql (expected-response obj) (actual-response obj)) 1 0)) 
-                                            (subseq (trials blk) 3)))))))
+                                            (subseq (trials blk) 3))))))
+        (win (exp-win p)))
     (log-info `(block-feedback :block ,(num blk) :accuracy ,acc :rt ,rt :accuracy-all ,acc-all))
     ;(log-info `(debug ,(mapcar (lambda(obj) (if (eql (expected-response obj) (actual-response obj)) 1 0)) (trials blk)) ,(mean (mapcar 'response-time (trials blk)))))
-    (capi:display-message (format nil "End of Block ~S ~%~%Your accuracy for targets was ~S %   ~%~%Your total accuracy was ~S %~%~% Your response time was ~S seconds" (num blk) acc acc-all rt))))
-  
+    (cond ((< (num blk) 2)
+          (capi:display-message (format nil "End of Block ~S ~%~%Your accuracy for targets was ~S %   ~%~%Your total accuracy was ~S %~%~% Your response time was ~S seconds" (num blk) acc acc-all rt)))
+          (t
+           (let ((win2 (strategy-sel-win p)))
+             (capi:hide-interface win nil)
+             (setf (sel win2) nil)
+             (capi:show-interface win2)
+             (capi:activate-pane win2)
+             (setf (capi:choice-selection (likert win2)) nil)
+             (mp:process-wait-with-timeout "selecting" 600 'sel win2 )
+             (log-info `(strategy-selection :choice ,(sel win2)))
+             (capi:hide-interface win2 nil)
+             (capi:show-interface win))))))
+           
+
 (defun nback-done (p)
   (if (btn-box p) (disconnect-response-pad))
   (capi:destroy (exp-win p))
@@ -396,11 +457,15 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
     (setf +screen-width+ (capi:screen-width (capi:convert-to-screen)) +screen-height+ (capi:screen-height (capi:convert-to-screen)))
     (setf (exp-win p) (make-instance 'n-back-screen :best-x (- (floor +screen-width+ 2) (floor +window-size+ 2))
                                                     :best-y (- (floor +screen-height+ 2) (floor +window-size+ 2))))
+    (setf (strategy-sel-win p) (make-instance 'likert-screen :best-x (- (floor +screen-width+ 2) (floor +window-size+ 2))
+                                                             :best-y 20))
 #+:response-pad (when btn-box 
                   (if (null (response-pad-status (get-response-pad))) (setq status  (connect-response-pad)))
                   (if (eql  (response-pad-status (get-response-pad)) 'connected) (enable-response-pad)))
     (log-info `(button-box ,btn-box ,status))
+    (capi:display (strategy-sel-win p))
     (capi:display (exp-win p))
+
     (mp:process-run-function "Nback" '() #' run-exp p)))
 
 
