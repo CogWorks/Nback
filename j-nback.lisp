@@ -67,7 +67,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 (defun mean (lst)
   (let ((l (remove nil lst)))
     (if (null l) 0 (/ (reduce '+ l) (length l)))))
-    
+(defparameter +strategy+ nil)
 (defparameter +stimulii+ nil)       
 (defparameter +num-blocks+ 12)
 (defconstant +passcode+ "cogworks")
@@ -450,7 +450,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 (defun run-nback (&key (btn-box nil))
   (let ((p (n-back)) (status nil))
     (setf (btn-box p) btn-box)
-    
+    (log-info `(Strategy ,+strategy+))
     (make-blocks p)
     
 
@@ -482,10 +482,15 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
          (fn (find resp files :key (lambda(y) (subseq y 0 (length resp))) :test 'equal)))
     (when fn
       (setf +stimulii+ (read-input (concatenate'string pn "nback_lists/" fn)))
-      (configuration-done (task p) :condition resp))))
+      (let* ((strategy '("rolling" "no-training"))
+             (resp2 (capi:prompt-with-list strategy "Please choose a condition: ")))
+        (when resp2
+          (setf +strategy+ resp2)
+        
+          (configuration-done (task p) :condition resp))))))
       
  (defun cw-run-nback ()
-   (log-info `(Cogworld))
+   (log-info `(Cogworld ))
    (let ((btn-box (capi:button-selected (check-response-pad (control-window *cw*)))))
      (run-nback :btn-box btn-box) ))
 
