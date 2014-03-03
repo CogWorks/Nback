@@ -431,7 +431,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
           (capi:display-message (format nil "End of Block ~S ~%~%Your accuracy for targets was ~S %   ~%~%Your total accuracy was ~S %~%~% Your response time was ~S seconds" (num blk) acc acc-all rt)))
           (t 
            (if (equal +strategy+ "no-training")
-               (capi:display-message (foramt nil "End of Block ~S ~%~% Click OK for next Block", (num blk)))
+               (capi:display-message (foramt nil "End of Block ~S ~%~% Click OK for next Block" (num blk)))
              (let ((win2 (strategy-sel-win p)))
                (capi:hide-interface win nil)
                (setf (sel win2) nil)
