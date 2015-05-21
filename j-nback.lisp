@@ -131,7 +131,10 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
   (block-order '(psl  sl_s sl_l sl_s sl_l sl_s sl_l sl_s sl_l sl_s sl_l sl_s sl_l))
   (stimulus-display-time 1.5))
 
-(let ((n-back (make-instance 'n-back2 )))
+(defclassic n-back3 (n-back2)
+  (stimulus-display-time 2.0))
+
+(let ((n-back (make-instance 'n-back3 )))
   (defun n-back () n-back))
 
 (defmethod set-eeg-event-label (eid (tr n-back-trial))
@@ -151,7 +154,8 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 (defmethod make-blocks ((p n-back2))
   (let ((n (round (/  (num-blocks p) 2)))
         (seq1 '(0 1 2 3))
-        (seq (permute-list '(4 5 6 7 8 9 10 11 12 13 14 15))))
+        (seq (permute-list '(4 5 6 7 8 9 10 11 12 13 14 15)))) 
+    
     (setq seq (append seq1 seq))
     (log-info `(block-sequence ,seq))
     (dotimes (i n)
@@ -160,15 +164,37 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
     (setf (blocks p) (permute-list (blocks p)))
     (dotimes (i 4)
       (push (make-instance 'practice-block) (blocks p) ))
-    (setf +stimulii+ (append +practice-trials+  +stimulii+)) 
+    (setf +stimulii+ (append +practice-trials+  +stimulii+))
+    
     (dotimes (i (length (blocks p)))
       (dotimes (j (length (nth i +stimulii+)))
         (destructuring-bind (stim typ back) (nth j (nth (nth i seq)  +stimulii+))
           (setf (num (nth i (blocks p) )) i) 
           (push  (make-instance 'n-back-trial :value stim :trial-type typ :num-since back :stimulus 'L :trial-num j :modality 'visual
-                                              :blk (nth i (blocks p) )  
-                                              :expected-response (if (eql typ 'x) nil (if (eql 'match typ) 'match 'no-match)))
+                                :blk (nth i (blocks p) )  
+                                :expected-response (if (eql typ 'x) nil (if (eql 'match typ) 'match 'no-match)))
                  (trials (nth i (blocks p) )))))
+        (setf (trials (nth i (blocks p) )) (reverse (trials (nth i (blocks p) )) )))))
+
+(defmethod make-blocks ((p n-back3))
+  (let* ((seq '(0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15))
+         (num-blocks (length seq))
+         (r-lst nil)) 
+    (dotimes (k 1000)
+      (push k r-lst) )
+    (setf r-lst (permute-list r-lst))
+    (log-info `(block-sequence ,(subseq r-lst 0 num-blocks)))
+    (dotimes (i num-blocks)
+      (push (make-instance 'long-block) (blocks p)))
+    (dotimes (i num-blocks)
+      (dotimes (j (length (nth i +stimulii+)))
+        (if (or (and (< i 4) (< j 32)) (>= i 4))
+            (destructuring-bind (stim typ back) (nth j (nth (nth i r-lst)  +stimulii+))
+              (setf (num (nth i (blocks p) )) i) 
+              (push  (make-instance 'n-back-trial :value stim :trial-type typ :num-since back :stimulus 'L :trial-num j :modality 'visual
+                                    :blk (nth i (blocks p) )  
+                                    :expected-response (if (eql typ 'x) nil (if (eql 'match typ) 'match 'no-match)))
+                     (trials (nth i (blocks p) ))))))
       (setf (trials (nth i (blocks p) )) (reverse (trials (nth i (blocks p) )) )))))
     
 (defclass cross (capi:drawn-pinboard-object)
@@ -268,9 +294,15 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
                                              (if (eql actual-response expected-response) :green :red))))))
       (capi:apply-in-pane-process (screen interface) (lambda(win) (setf (capi:layout-description (screen win)) (list sq))) interface))))
 
+(defmethod display-feedback3 ((interface n-back-screen) tr)
+    (let ((sq (make-instance 'square :filled t :foreground :black )))
+      (capi:apply-in-pane-process (screen interface) (lambda(win) (setf (capi:layout-description (screen win)) (list sq))) interface)))
+
+
+
 (defmethod calc-actual-response ((tr n-back-trial) key)
-  (cond ((and  (eql (stimulus tr) 'L) (eql key +match-letter+) 'match))
-        ((and  (eql (stimulus tr) 'L) (eql key +no-match-letter+) 'no-match))
+  (cond ((and  (eql (stimulus tr) 'L) (eql (char-downcase key) +match-letter+) 'match))
+        ((and  (eql (stimulus tr) 'L) (eql (char-downcase key) +no-match-letter+) 'no-match))
         (t  (capi:beep-pane) (sleep .1) (capi:beep-pane)
             'invalid-response))) ;
 
@@ -376,7 +408,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
   (if (and (plusp n) (zerop (mod n 4))) 
       (while (null (electrode-message)) (capi:beep-pane) (sleep 0.2) (capi:beep-pane))))
          
-(defvar abcd nil)
+
 (defmethod run-exp ((p n-back2))
   (with-slots (exp-win in-progress? stimulus-display-time blocks current-trial ) p
     
@@ -406,7 +438,9 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
                   (setf in-progress? nil)
                   (if (and (null (actual-response tr)) (expected-response tr)) (log-info `(no-subject-response :expected-respose ,(expected-response tr))))
                   (if (< i 2)
-                      (display-feedback exp-win tr))
+                      (display-feedback exp-win tr)
+                    (if (and (typep p 'n-back3) (null (actual-response tr)) (expected-response tr))
+                        (display-feedback3 exp-win tr)))
                   (sleep (isi blk)) 
                   (clear-screen exp-win)
                   )))
@@ -478,13 +512,13 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
       )
 
 (defun n-back-config ()
-  (let* ((condition '("even_8" "even_24" "skewed_8" "skewed_24"))
+  (let* ((condition '("even_24" "skewed_24"))
          (resp (capi:prompt-with-list condition "Please choose a condition: "))
          (files (mapcar 'file-namestring (directory (concatenate'string pn "nback_lists/"))))
          (fn (find resp files :key (lambda(y) (subseq y 0 (length resp))) :test 'equal)))
     (when fn
       (setf +stimulii+ (read-input (concatenate'string pn "nback_lists/" fn)))
-      (let* ((strategy '("rolling" "no-training"))
+      (let* ((strategy '("rolling" "static" "no-training"))
              (resp2 (capi:prompt-with-list strategy "Please choose a condition: ")))
         (when resp2
           (setf +strategy+ resp2)
